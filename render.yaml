@@ -1,0 +1,41 @@
+# Deploys the pipeline editor: a Render Workflow that runs each step in its own sandbox, and the
+# web service that hosts the editor and starts workflow runs. Build the runner snapshot with
+# `npm run setup` before the first run (see README).
+
+envVarGroups:
+  # Both services call the Render API. Render asks for these once, when you create the Blueprint.
+  - name: sandbox-pipeline-api
+    envVars:
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_WORKSPACE_ID
+        sync: false
+
+services:
+  # Runs the runPipeline and runBlock tasks in src/workflow.ts. Workflows have no service plan:
+  # each task sets its own compute plan in code.
+  - type: workflow
+    name: sandbox-pipeline
+    runtime: node
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm run workflow
+    envVars:
+      - fromGroup: sandbox-pipeline-api
+
+  # Serves the editor and starts runs on the workflow above. It has no authentication (see README).
+  - type: web
+    name: sandbox-pipeline-editor
+    runtime: node
+    region: oregon
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm run web
+    healthCheckPath: /
+    envVars:
+      - fromGroup: sandbox-pipeline-api
+      - key: WORKFLOW_SLUG
+        fromService:
+          type: workflow
+          name: sandbox-pipeline
+          property: slug

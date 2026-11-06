@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sandbox pipeline</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500&family=Roboto+Mono:wght@400&display=swap"
+    />
+    <link rel="stylesheet" href="/vs/editor/editor.main.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="title">
+        <h1>Sandbox pipeline</h1>
+        <p>Each step runs in its own Render Sandbox. A Render Workflow runs the steps in order.</p>
+      </div>
+      <div class="run-controls">
+        <p id="run-status" class="run-status" aria-live="polite"></p>
+        <button id="cancel" class="button secondary" type="button" hidden>Cancel</button>
+        <button id="run" class="button primary" type="button" disabled>Run pipeline</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel steps-panel" aria-label="Pipeline">
+        <div class="panel-header">
+          <h2 class="overline">Pipeline</h2>
+          <button id="reset" class="text-button" type="button">Reset</button>
+        </div>
+        <ol id="step-list" class="step-list"></ol>
+        <div class="add-step">
+          <label class="overline" for="example">Add a step</label>
+          <div class="add-step-row">
+            <select id="example" class="control"></select>
+            <button id="add-step" class="button secondary" type="button">Add</button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel editor-panel" aria-label="Editor">
+        <div id="settings" class="settings"></div>
+        <div id="editor" class="editor"></div>
+      </section>
+
+      <aside class="panel results-panel" aria-label="Results">
+        <div id="results"></div>
+      </aside>
+    </main>
+
+    <script src="/vs/loader.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -26,7 +26,11 @@ One sandbox per run (microVM, from the "v5-ts-runner" snapshot)
 | `src/types.ts` | The public code-block request and result types. |
 | `src/demo.ts` | A short table of contents that runs each learning-area chapter. |
 | `src/demo/` | One focused chapter per concept, plus shared reporting helpers. |
-| `examples/` | Sample user code: three well-behaved examples, one that uses a brokered credential, and five hostile ones. |
+| `src/workflow.ts` | A Render Workflow that runs a pipeline of code blocks, one sandbox per step. |
+| `src/server.ts` | The pipeline editor's backend: starts workflow runs and reports each step's progress. |
+| `web/` | The pipeline editor: a Monaco code editor for each step, with run status, output, and logs. |
+| `render.yaml` | Blueprint that deploys the workflow and the editor's web service. |
+| `examples/` | Sample user code: four well-behaved examples, one that uses a brokered credential, and five hostile ones. |
 
 ## Run it
 
@@ -58,6 +62,71 @@ The demo:
 For a code walkthrough, start with `src/runCodeBlock.ts`. Its numbered sections deliberately
 leave every important Sandbox SDK call visible. Read `src/harness.mts` next to see the trusted
 boundary around user code, then `src/setup.ts` to see how the reusable filesystem snapshot is built.
+
+## Pipeline editor
+
+A web editor for building a pipeline of code blocks and running it as a Render Workflow. Each
+step runs in its own sandbox and receives the previous step's output.
+
+```
+Browser: one Monaco editor per step                          web/
+   │  POST /api/runs { input, steps }
+   ▼
+Web server (holds the Render API key)                        src/server.ts
+   │  workflows.startTask("<workflow-slug>/runPipeline", [pipeline])
+   ▼
+runPipeline task: runs the steps in order                    src/workflow.ts
+   │  ctx.run(runBlock, step, previousOutput)
+   ▼
+runBlock task, one task run per step → runCodeBlock() → one sandbox
+```
+
+The editor polls the run and shows which step is running, then each step's output, console
+output, sandbox ID, and errors. A failed or timed-out step stops the pipeline. `runBlock` retries
+infrastructure errors, such as a sandbox that fails to boot, up to twice. It doesn't retry errors
+in user code, because the same code would fail the same way.
+
+### Run it locally
+
+Build the runner snapshot first (`npm run setup`) if you haven't. Then, in two terminals:
+
+```bash
+npm run workflow:dev      # local task server on :8120, runs src/workflow.ts
+npm run web:dev           # editor on http://localhost:3000
+```
+
+The tasks run on your machine, but each step still creates a real sandbox, so `.env` needs
+`RENDER_API_KEY` and `RENDER_WORKSPACE_ID`. `web:dev` sets `RENDER_USE_LOCAL_DEV=true` so the web
+server starts runs on the local task server. Don't put that variable in `.env`: the task process
+loads `.env` too, and the SDK would then send its sandbox calls to localhost.
+
+### Deploy to Render
+
+[`render.yaml`](render.yaml) is a Blueprint that creates both services:
+
+| Service | Type | Start command |
+| --- | --- | --- |
+| `sandbox-pipeline` | Workflow | `npm run workflow`: registers the `runPipeline` and `runBlock` tasks |
+| `sandbox-pipeline-editor` | Web service (Starter) | `npm run web`: serves the editor and its API |
+
+1. Build the runner snapshot in the same workspace, if you haven't: `npm run setup`.
+2. Push this repo to GitHub, GitLab, or Bitbucket.
+3. In the Dashboard, click **New > Blueprint** and select the repo.
+4. When prompted, enter `RENDER_API_KEY` and `RENDER_WORKSPACE_ID`. Both services read them from
+   the `sandbox-pipeline-api` environment group.
+
+The web service reads `WORKFLOW_SLUG` from the workflow (`fromService` with `property: slug`), so
+it always starts runs on the workflow the Blueprint created. Workflows have no service plan:
+`src/workflow.ts` sets each task's compute plan.
+
+The web server has no authentication. Anyone who can reach it can run code in your sandboxes, so
+put it behind your own auth before you expose it. It does enforce limits on what it starts: 10
+steps, 60 seconds per step, 100,000 characters of code per step, and hostnames only in each
+step's allowlist.
+
+If you cancel a run partway through a step, that step's `finally` block may not run. The sandbox
+then stops when it reaches the `timeoutSeconds` it was created with: the step's time limit plus
+120 seconds.
 
 ## Writing user code
 
